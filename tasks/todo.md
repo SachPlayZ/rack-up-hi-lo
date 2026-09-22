@@ -45,8 +45,8 @@
 
 ### Plan
 
-- [ ] Verify auth/configuration and repository contents before publishing.
-- [ ] Create a private GitHub repository, commit the app, and push `main`.
+- [x] Verify auth/configuration and repository contents before publishing.
+- [x] Create a private GitHub repository, commit the app, and push `main`.
 - [ ] Link the project with Vercel CLI and deploy it.
 - [ ] Verify the remote repository and deployed URL; record any missing runtime setup.
 
