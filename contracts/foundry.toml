@@ -1,0 +1,27 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+solc = "0.8.34"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 1_000
+via_ir = true
+bytecode_hash = "none"
+cbor_metadata = false
+
+[fuzz]
+runs = 512
+
+[invariant]
+runs = 256
+depth = 64
+fail_on_revert = false
+
+[rpc_endpoints]
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+
+[etherscan]
+base_sepolia = { key = "${BASESCAN_API_KEY}", chain = 84532, url = "https://api-sepolia.basescan.org/api" }

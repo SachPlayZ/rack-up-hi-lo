@@ -1,0 +1,14 @@
+.DS_Store
+.env
+.env.local
+.env.*.local
+.next/
+node_modules/
+coverage/
+playwright-report/
+test-results/
+tsconfig.tsbuildinfo
+contracts/cache/
+contracts/out/
+contracts/broadcast/
+contracts/lib/
