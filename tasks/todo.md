@@ -47,20 +47,30 @@
 
 - [x] Verify auth/configuration and repository contents before publishing.
 - [x] Create a private GitHub repository, commit the app, and push `main`.
-- [ ] Link the project with Vercel CLI and deploy it.
-- [ ] Verify the remote repository and deployed URL; record any missing runtime setup.
+- [x] Link the project with Vercel CLI and deploy it.
+- [x] Verify the remote repository and deployed URL; record any missing runtime setup.
 
 ### Verification
 
-- [ ] Confirm GitHub remote and pushed commit.
-- [ ] Confirm Vercel deployment status and production URL.
+- [x] Confirm GitHub remote and pushed commit.
+- [x] Confirm Vercel deployment status and production URL.
 
 ### Review
 
 #### Changed
 
+- Created private GitHub repository `SachPlayZ/rack-up-hi-lo`; pushed `main` through commit `3cf0b41`.
+- Linked Vercel project `rack-up-hi-lo`, set its framework to Next.js, and deployed production.
+
 #### Verified
+
+- `gh repo view` confirms a private repository on `main`; local `main` tracks `origin/main` and is clean.
+- Vercel reports production deployment `READY`; `https://rack-up-hi-lo.vercel.app` returns HTTP 200.
 
 #### Risks
 
+- Privy app ID, game/faucet contract addresses, and faucet relay secrets are not configured in Vercel, so login and onchain gameplay need production environment setup before use.
+
 #### Follow-ups
+
+- Configure the production Privy and Base Sepolia contract/faucet variables in Vercel, then redeploy and run the live smoke game.
