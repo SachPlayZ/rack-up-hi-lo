@@ -21,7 +21,7 @@ export enum Outcome {
   Refund,
 }
 
-export type PlayerView = { account: Address; displayName: string };
+export type PlayerView = { account: Address; displayName: string; active: boolean };
 export type Player = { displayName: string; joined: boolean };
 export type Bet = { amount: bigint; side: Side; claimed: boolean };
 export type Round = {
@@ -34,6 +34,8 @@ export type Round = {
   bettingClosesAt: bigint;
   randomnessRequestedAt: bigint;
   bettorCount: number;
+  hiBettorCount: number;
+  loBettorCount: number;
   previousBall: number;
   resultBall: number;
   outcome: Outcome;
@@ -46,8 +48,10 @@ export const hiLoGameAbi = parseAbi([
   "function phase() view returns (uint8)",
   "function currentBall() view returns (uint8)",
   "function initialRandomnessRequestedAt() view returns (uint64)",
-  "function getCurrentPlayers() view returns ((address account,string displayName)[])",
-  "function getRound(uint256 roundId) view returns ((uint256 gameId,uint256 requestId,uint128 hiPool,uint128 loPool,uint128 eligibleStakeRemaining,uint128 payoutPoolRemaining,uint64 bettingClosesAt,uint64 randomnessRequestedAt,uint32 bettorCount,uint8 previousBall,uint8 resultBall,uint8 outcome))",
+  "function getPlayerCount(uint256 gameId) view returns (uint256 totalPlayers,uint256 activePlayers)",
+  "function getPlayerPage(uint256 gameId,uint256 offset,uint256 limit) view returns ((address account,string displayName,bool active)[])",
+  "function isPlayerActive(uint256 gameId,address account) view returns (bool)",
+  "function getRound(uint256 roundId) view returns ((uint256 gameId,uint256 requestId,uint128 hiPool,uint128 loPool,uint128 eligibleStakeRemaining,uint128 payoutPoolRemaining,uint64 bettingClosesAt,uint64 randomnessRequestedAt,uint32 bettorCount,uint32 hiBettorCount,uint32 loBettorCount,uint8 previousBall,uint8 resultBall,uint8 outcome))",
   "function getPlayer(uint256 gameId,address account) view returns ((string displayName,bool joined))",
   "function getBet(uint256 roundId,address account) view returns ((uint128 amount,uint8 side,bool claimed))",
   "function getClaimable(uint256 roundId,address account) view returns (uint256)",

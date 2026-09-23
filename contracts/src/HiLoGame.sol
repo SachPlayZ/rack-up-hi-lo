@@ -56,6 +56,7 @@ contract HiLoGame is Ownable2Step, ReentrancyGuardTransient, VRFConsumerBaseV2Pl
     struct PlayerView {
         address account;
         string displayName;
+        bool active;
     }
 
     struct Bet {
@@ -74,6 +75,8 @@ contract HiLoGame is Ownable2Step, ReentrancyGuardTransient, VRFConsumerBaseV2Pl
         uint64 bettingClosesAt;
         uint64 randomnessRequestedAt;
         uint32 bettorCount;
+        uint32 hiBettorCount;
+        uint32 loBettorCount;
         uint8 previousBall;
         uint8 resultBall;
         Outcome outcome;
@@ -88,10 +91,10 @@ contract HiLoGame is Ownable2Step, ReentrancyGuardTransient, VRFConsumerBaseV2Pl
                          STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    uint256 public constant BETTING_DURATION = 30 seconds;
+    uint256 public constant BETTING_DURATION = 1 minutes;
     uint256 public constant FORCE_ROLL_DELAY = 5 minutes;
     uint256 public constant ORACLE_TIMEOUT = 1 hours;
-    uint256 public constant MAX_PLAYERS = 100;
+    uint256 public constant MAX_PLAYER_PAGE_SIZE = 100;
     uint256 public constant MAX_BATCH_CLAIMS = 20;
 
     uint32 private constant NUM_WORDS = 1;
@@ -115,6 +118,8 @@ contract HiLoGame is Ownable2Step, ReentrancyGuardTransient, VRFConsumerBaseV2Pl
     uint256 private s_lastRoundId;
     mapping(uint256 gameId => address[] accounts) private s_playersByGame;
     mapping(uint256 gameId => mapping(address account => Player player)) private s_players;
+    mapping(uint256 gameId => uint256 activePlayerCount) private s_activePlayerCount;
+    mapping(uint256 gameId => uint256 roundId) private s_lastDecisiveRoundId;
     mapping(uint256 roundId => Round round) private s_rounds;
     mapping(uint256 roundId => mapping(address account => Bet bet)) private s_bets;
     mapping(address account => uint256[] roundIds) private s_playerBetRounds;
@@ -155,9 +160,11 @@ contract HiLoGame is Ownable2Step, ReentrancyGuardTransient, VRFConsumerBaseV2Pl
     error HiLoGame__WrongPhase(Phase expected, Phase actual);
     error HiLoGame__InvalidDisplayName();
     error HiLoGame__AlreadyJoined();
-    error HiLoGame__LobbyFull();
     error HiLoGame__NotEnoughPlayers();
+    error HiLoGame__NoRemainingPlayers();
+    error HiLoGame__InvalidPlayerPage();
     error HiLoGame__NotJoined();
+    error HiLoGame__PlayerEliminated();
     error HiLoGame__InvalidSide();
     error HiLoGame__ZeroBet();
     error HiLoGame__BetTooLarge();
@@ -210,10 +217,10 @@ contract HiLoGame is Ownable2Step, ReentrancyGuardTransient, VRFConsumerBaseV2Pl
         uint256 gameId = currentGameId;
         if (s_players[gameId][msg.sender].joined) revert HiLoGame__AlreadyJoined();
         address[] storage accounts = s_playersByGame[gameId];
-        if (accounts.length >= MAX_PLAYERS) revert HiLoGame__LobbyFull();
 
         s_players[gameId][msg.sender] = Player({displayName: displayName, joined: true});
         accounts.push(msg.sender);
+        ++s_activePlayerCount[gameId];
 
         emit LobbyJoined(gameId, msg.sender, displayName, accounts.length);
     }
@@ -240,6 +247,7 @@ contract HiLoGame is Ownable2Step, ReentrancyGuardTransient, VRFConsumerBaseV2Pl
 
         uint256 gameId = currentGameId;
         if (!s_players[gameId][msg.sender].joined) revert HiLoGame__NotJoined();
+        if (!_isPlayerActive(gameId, msg.sender)) revert HiLoGame__PlayerEliminated();
 
         uint256 roundId = currentRoundId;
         Round storage round = s_rounds[roundId];
@@ -255,6 +263,8 @@ contract HiLoGame is Ownable2Step, ReentrancyGuardTransient, VRFConsumerBaseV2Pl
         if (side == Side.Hi) round.hiPool += amount;
         else round.loPool += amount;
         ++round.bettorCount;
+        if (side == Side.Hi) ++round.hiBettorCount;
+        else ++round.loBettorCount;
         s_playerBetRounds[msg.sender].push(roundId);
 
         emit BetPlaced(roundId, msg.sender, side, amount);
@@ -271,6 +281,7 @@ contract HiLoGame is Ownable2Step, ReentrancyGuardTransient, VRFConsumerBaseV2Pl
         _requirePhase(Phase.Betting);
         uint256 gameId = currentGameId;
         if (!s_players[gameId][msg.sender].joined) revert HiLoGame__NotJoined();
+        if (!_isPlayerActive(gameId, msg.sender)) revert HiLoGame__PlayerEliminated();
 
         Round storage round = s_rounds[currentRoundId];
         if (block.timestamp < uint256(round.bettingClosesAt) + FORCE_ROLL_DELAY) {
@@ -321,6 +332,7 @@ contract HiLoGame is Ownable2Step, ReentrancyGuardTransient, VRFConsumerBaseV2Pl
 
     function openNextRound() external onlyOwner {
         _requirePhase(Phase.Settled);
+        if (s_activePlayerCount[currentGameId] == 0) revert HiLoGame__NoRemainingPlayers();
         _openRound();
     }
 
@@ -355,14 +367,35 @@ contract HiLoGame is Ownable2Step, ReentrancyGuardTransient, VRFConsumerBaseV2Pl
                     USER-FACING READ-ONLY FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function getCurrentPlayers() external view returns (PlayerView[] memory playerList) {
-        uint256 gameId = currentGameId;
+    function getPlayerCount(uint256 gameId) external view returns (uint256 totalPlayers, uint256 activePlayers) {
+        totalPlayers = s_playersByGame[gameId].length;
+        activePlayers = s_activePlayerCount[gameId];
+    }
+
+    function getPlayerPage(uint256 gameId, uint256 offset, uint256 limit)
+        external
+        view
+        returns (PlayerView[] memory playerList)
+    {
+        if (limit == 0 || limit > MAX_PLAYER_PAGE_SIZE) revert HiLoGame__InvalidPlayerPage();
+
         address[] storage accounts = s_playersByGame[gameId];
-        playerList = new PlayerView[](accounts.length);
-        for (uint256 i; i < accounts.length; ++i) {
-            address account = accounts[i];
-            playerList[i] = PlayerView({account: account, displayName: s_players[gameId][account].displayName});
+        if (offset >= accounts.length) return new PlayerView[](0);
+        uint256 remaining = accounts.length - offset;
+        uint256 count = limit < remaining ? limit : remaining;
+        playerList = new PlayerView[](count);
+        for (uint256 i; i < count; ++i) {
+            address account = accounts[offset + i];
+            playerList[i] = PlayerView({
+                account: account,
+                displayName: s_players[gameId][account].displayName,
+                active: _isPlayerActive(gameId, account)
+            });
         }
+    }
+
+    function isPlayerActive(uint256 gameId, address account) external view returns (bool active) {
+        active = _isPlayerActive(gameId, account);
     }
 
     function getPlayer(uint256 gameId, address account) external view returns (Player memory player) {
@@ -450,6 +483,8 @@ contract HiLoGame is Ownable2Step, ReentrancyGuardTransient, VRFConsumerBaseV2Pl
         } else {
             round.outcome = result;
             round.eligibleStakeRemaining = winningPool;
+            s_lastDecisiveRoundId[round.gameId] = roundId;
+            s_activePlayerCount[round.gameId] = result == Outcome.Hi ? round.hiBettorCount : round.loBettorCount;
         }
         round.payoutPoolRemaining = totalPool;
         phase = Phase.Settled;
@@ -483,6 +518,8 @@ contract HiLoGame is Ownable2Step, ReentrancyGuardTransient, VRFConsumerBaseV2Pl
             bettingClosesAt: closesAt,
             randomnessRequestedAt: 0,
             bettorCount: 0,
+            hiBettorCount: 0,
+            loBettorCount: 0,
             previousBall: currentBall,
             resultBall: 0,
             outcome: Outcome.Pending
@@ -541,5 +578,18 @@ contract HiLoGame is Ownable2Step, ReentrancyGuardTransient, VRFConsumerBaseV2Pl
         if (bet.amount == 0 || outcome == Outcome.Pending) return false;
         if (outcome == Outcome.Refund) return true;
         eligible = (outcome == Outcome.Hi && bet.side == Side.Hi) || (outcome == Outcome.Lo && bet.side == Side.Lo);
+    }
+
+    function _isPlayerActive(uint256 gameId, address account) private view returns (bool active) {
+        if (!s_players[gameId][account].joined) return false;
+
+        uint256 decisiveRoundId = s_lastDecisiveRoundId[gameId];
+        if (decisiveRoundId == 0) return true;
+
+        Round storage decisiveRound = s_rounds[decisiveRoundId];
+        Bet storage bet = s_bets[decisiveRoundId][account];
+        active = bet.amount != 0
+            && ((decisiveRound.outcome == Outcome.Hi && bet.side == Side.Hi)
+                || (decisiveRound.outcome == Outcome.Lo && bet.side == Side.Lo));
     }
 }

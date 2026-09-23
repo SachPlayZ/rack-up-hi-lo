@@ -5,7 +5,7 @@ import { SiteHeader } from "@/components/site-header";
 import { Countdown } from "@/components/countdown";
 import { PoolBall } from "@/components/pool-ball";
 import { useGameActions, useGameSnapshot } from "@/hooks/use-game";
-import { Phase, phaseLabel } from "@/lib/contracts";
+import { Phase, phaseLabel, type PlayerView } from "@/lib/contracts";
 import { errorMessage, formatEth, shortAddress } from "@/lib/format";
 import { usePrivyAuth } from "@/hooks/use-privy-auth";
 
@@ -16,6 +16,10 @@ export function AdminConsole() {
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
   const [now, setNow] = useState(0);
+  const [endedGameId, setEndedGameId] = useState<bigint | null>(null);
+  const [remainingPlayers, setRemainingPlayers] = useState<PlayerView[] | null>(null);
+  const [remainingPlayersError, setRemainingPlayersError] = useState(false);
+  const [loadingRemainingPlayers, setLoadingRemainingPlayers] = useState(false);
   const isOwner = Boolean(snapshot.address && snapshot.owner && snapshot.address.toLowerCase() === snapshot.owner.toLowerCase());
   const round = snapshot.round;
   const bettingClosed = Boolean(now && round && Number(round.bettingClosesAt) <= now);
@@ -41,6 +45,30 @@ export function AdminConsole() {
     } catch (error) {
       setFailed(true);
       setMessage(errorMessage(error));
+    }
+  }
+
+  async function endGame() {
+    const endedId = snapshot.currentGameId;
+    setFailed(false);
+    setMessage("Ending game…");
+    setLoadingRemainingPlayers(true);
+    setEndedGameId(null);
+    setRemainingPlayers(null);
+    setRemainingPlayersError(false);
+    try {
+      await actions.endGame();
+      setEndedGameId(endedId);
+      setMessage("Loading remaining players…");
+      const survivors = await actions.loadRemainingPlayers(endedId);
+      setRemainingPlayers(survivors);
+      setMessage(`Game ${endedId.toString()} ended · ${survivors.length.toLocaleString()} remaining.`);
+    } catch (error) {
+      setRemainingPlayersError(true);
+      setFailed(true);
+      setMessage(errorMessage(error));
+    } finally {
+      setLoadingRemainingPlayers(false);
     }
   }
 
@@ -112,15 +140,16 @@ export function AdminConsole() {
         <section className="panel">
           <div className="panel__header"><h2>Table controls</h2><span className="round-label">Owner only</span></div>
           <div className="metric-grid">
-            <div className="metric"><span>Players</span><strong>{snapshot.players.length}</strong></div>
+            <div className="metric"><span>Players joined</span><strong>{snapshot.totalPlayerCount.toLocaleString()}</strong></div>
+            <div className="metric"><span>Still in game</span><strong>{snapshot.activePlayerCount.toLocaleString()}</strong></div>
             <div className="metric"><span>Bettors</span><strong>{round?.bettorCount ?? 0}</strong></div>
             <div className="metric"><span>Faucet reserve</span><strong>{formatEth(snapshot.faucetBalance)}</strong></div>
-            <div className="metric"><span>Faucet drop</span><strong>{formatEth(snapshot.faucetClaimAmount)}</strong></div>
+            <div className="metric"><span>Starter claim</span><strong>{formatEth(snapshot.faucetClaimAmount)}</strong></div>
           </div>
 
           <div className="admin-controls">
             {snapshot.phase === Phase.Lobby ? (
-              <button className="button button--brass" type="button" disabled={actions.isPending || snapshot.players.length < 2} onClick={() => void run("Requesting the opening ball…", actions.startGame)}>Start game</button>
+              <button className="button button--brass" type="button" disabled={actions.isPending || snapshot.totalPlayerCount < 2n} onClick={() => void run("Requesting the opening ball…", actions.startGame)}>Start game</button>
             ) : null}
             {snapshot.phase === Phase.AwaitingInitialBall && initialTimeoutReady ? (
               <button className="button button--danger" type="button" disabled={actions.isPending} onClick={() => void run("Cancelling the timed-out opening draw…", actions.cancelStaleInitialRequest)}>Return to lobby</button>
@@ -136,37 +165,45 @@ export function AdminConsole() {
             ) : null}
             {snapshot.phase === Phase.Settled ? (
               <>
-                <button className="button button--brass" type="button" disabled={actions.isPending} onClick={() => void run("Opening the next betting window…", actions.openNextRound)}>Next round</button>
-                <button className="button button--danger" type="button" disabled={actions.isPending} onClick={() => void run("Ending this game…", actions.endGame)}>End game</button>
+                {snapshot.activePlayerCount > 0n ? (
+                  <button className="button button--brass" type="button" disabled={actions.isPending || loadingRemainingPlayers} onClick={() => void run("Opening the next betting window…", actions.openNextRound)}>Next round</button>
+                ) : null}
+                <button className="button button--danger" type="button" disabled={actions.isPending || loadingRemainingPlayers} onClick={() => void endGame()}>End game</button>
               </>
             ) : null}
           </div>
           {message ? <p className={failed ? "error-copy" : "hint"}>{message}</p> : null}
-          {snapshot.phase === Phase.Lobby && snapshot.players.length < 2 ? <p className="hint">Two players are required before the opening draw.</p> : null}
+          {snapshot.phase === Phase.Lobby && snapshot.totalPlayerCount < 2n ? <p className="hint">Two players are required before the opening draw.</p> : null}
+          {snapshot.phase === Phase.Settled && snapshot.activePlayerCount === 0n ? <p className="hint">No players remain. End the game to show the final survivors.</p> : null}
         </section>
 
-        <section className="panel">
-          <div className="panel__header"><h2>Live roster</h2><span className="round-label">{snapshot.players.length}/100</span></div>
-          <div className="lobby-list">
-            {snapshot.players.map((player, index) => (
-              <div className="lobby-player" key={player.account}>
-                <div className="player-ident">
-                  <span className="avatar">{player.displayName.charAt(0).toUpperCase()}</span>
-                  <div><strong>{player.displayName}</strong><small>{shortAddress(player.account)}</small></div>
-                </div>
-                <span className="round-label">#{index + 1}</span>
-              </div>
-            ))}
-            {!snapshot.players.length ? <p className="empty-state">Waiting for the first player.</p> : null}
-          </div>
-        </section>
+        {endedGameId !== null ? (
+          <section className="panel">
+            <div className="panel__header">
+              <h2>Game {endedGameId.toString()} · Remaining players</h2>
+              {remainingPlayers ? <span className="round-label">{remainingPlayers.length.toLocaleString()}</span> : null}
+            </div>
+            {loadingRemainingPlayers ? (
+              <p className="hint" role="status">Loading the final player list…</p>
+            ) : remainingPlayersError ? (
+              <p className="error-copy">Game ended, but the final list could not be loaded. Refresh the desk to retry.</p>
+            ) : remainingPlayers?.length ? (
+              <ul className="survivor-list">
+                {remainingPlayers.map((player) => <li key={player.account}>{player.displayName}</li>)}
+              </ul>
+            ) : (
+              <p className="empty-state">No players remained when this game ended.</p>
+            )}
+          </section>
+        ) : null}
 
         <section className="panel">
-          <div className="panel__header"><h2>Safety rails</h2></div>
+          <div className="panel__header"><h2>Round rules</h2></div>
           <ol className="step-list">
-            <li><span>1</span> Bets close by onchain timestamp.</li>
-            <li><span>2</span> Players may force a roll after five minutes.</li>
-            <li><span>3</span> Oracle failures become refunds after one hour.</li>
+            <li><span>1</span> Wagers close after 60 seconds onchain.</li>
+            <li><span>2</span> Wrong or skipped calls eliminate; refunds preserve players.</li>
+            <li><span>3</span> Players may force a roll five minutes after close.</li>
+            <li><span>4</span> Oracle failures become refunds after one hour.</li>
           </ol>
         </section>
       </main>

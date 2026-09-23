@@ -7,7 +7,7 @@ Mobile-first, onchain Hi-Lo for Base Sepolia. Players claim starter test ETH wit
 - Next.js 16, React 19, TypeScript, wagmi/viem, and Privy authentication.
 - Google/email/phone/wallet login with automatic Privy embedded wallets and a dedicated desktop admin desk.
 - Foundry contracts for the game, Chainlink VRF v2.5 integration, and the native ETH faucet.
-- Onchain lobby names, 30-second rounds, one bet per wallet, pari-mutuel payouts, batched pull claims, force-roll, and timeout refunds.
+- Onchain lobby with no fixed player cap, 60-second rounds, one bet per wallet, elimination for wrong or skipped bets, pari-mutuel payouts, batched pull claims, force-roll, and timeout refunds.
 - Gasless faucet relay authenticated with a five-minute EIP-4361 SIWE challenge.
 
 ## Local development

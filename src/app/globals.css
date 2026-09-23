@@ -241,7 +241,6 @@ p {
 .table-card__top,
 .panel__header,
 .pool-row,
-.lobby-player,
 .metric-row {
   display: flex;
   align-items: center;
@@ -535,53 +534,27 @@ p {
   line-height: 1.45;
 }
 
-.lobby-list {
+.survivor-list {
   display: grid;
-  gap: 6px;
-  max-height: 310px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr));
+  gap: 0 18px;
+  max-height: min(48svh, 360px);
+  margin: 0;
+  padding: 0;
   overflow-y: auto;
+  list-style: none;
 }
 
-.lobby-player {
-  min-height: 48px;
-  padding: 9px 10px;
-  border-bottom: 1px solid var(--line);
-}
-
-.lobby-player:last-child {
-  border-bottom: 0;
-}
-
-.avatar {
-  display: grid;
-  place-items: center;
-  flex: 0 0 30px;
-  width: 30px;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  color: var(--ink);
-  font-weight: 800;
-  background: var(--brass-light);
-}
-
-.player-ident {
-  display: flex;
-  align-items: center;
-  gap: 9px;
+.survivor-list li {
   min-width: 0;
-}
-
-.player-ident strong,
-.player-ident small {
-  display: block;
+  padding: 10px 0;
   overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  color: var(--ivory);
+  font-size: 14px;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.player-ident small {
-  color: var(--ivory-dim);
-  font-size: 11px;
 }
 
 .form-stack {
@@ -760,4 +733,3 @@ p {
     transition-duration: 0.01ms !important;
   }
 }
-

@@ -76,10 +76,14 @@ contract HiLoGameTest is Test {
         assertEq(game.currentBall(), 0);
         assertEq(game.owner(), address(this));
 
-        HiLoGame.PlayerView[] memory players = game.getCurrentPlayers();
-        assertEq(players.length, 3);
+        (uint256 totalPlayers, uint256 activePlayers) = game.getPlayerCount(1);
+        assertEq(totalPlayers, 3);
+        assertEq(activePlayers, 3);
+        HiLoGame.PlayerView[] memory players = game.getPlayerPage(1, 0, 2);
+        assertEq(players.length, 2);
         assertEq(players[0].account, alice);
         assertEq(players[0].displayName, "Alice");
+        assertTrue(players[0].active);
         HiLoGame.Player memory player = game.getPlayer(1, bob);
         assertTrue(player.joined);
         assertEq(player.displayName, "Bobby");
@@ -117,15 +121,26 @@ contract HiLoGameTest is Test {
         game.joinLobby("Again");
     }
 
-    function test_RevertWhen_LobbyIsFull() external {
-        for (uint256 i = 3; i < game.MAX_PLAYERS(); ++i) {
-            // The loop upper bound is 100.
+    function test_GameSupportsMoreThanOneHundredPlayersAndPaginatesRoster() external {
+        for (uint256 i; i < 105; ++i) {
             // forge-lint: disable-next-line(unsafe-typecast)
             _join(address(uint160(1_000 + i)), "Bot");
         }
-        vm.prank(outsider);
-        vm.expectRevert(HiLoGame.HiLoGame__LobbyFull.selector);
-        game.joinLobby("Extra");
+
+        (uint256 totalPlayers, uint256 activePlayers) = game.getPlayerCount(game.currentGameId());
+        assertEq(totalPlayers, 108);
+        assertEq(activePlayers, 108);
+        assertEq(game.getPlayerPage(game.currentGameId(), 0, 100).length, 100);
+        assertEq(game.getPlayerPage(game.currentGameId(), 100, 100).length, 8);
+        assertEq(game.getPlayerPage(game.currentGameId(), 200, 100).length, 0);
+    }
+
+    function test_RevertWhen_PlayerPageSizeIsInvalid() external {
+        vm.expectRevert(HiLoGame.HiLoGame__InvalidPlayerPage.selector);
+        game.getPlayerPage(1, 0, 0);
+
+        vm.expectRevert(HiLoGame.HiLoGame__InvalidPlayerPage.selector);
+        game.getPlayerPage(1, 0, 101);
     }
 
     function test_RevertWhen_NonOwnerStartsGame() external {
@@ -151,6 +166,61 @@ contract HiLoGameTest is Test {
         HiLoGame.Round memory round = game.getRound(game.currentRoundId());
         assertEq(round.previousBall, game.currentBall());
         assertEq(round.bettingClosesAt, block.timestamp + game.BETTING_DURATION());
+        assertEq(game.BETTING_DURATION(), 60);
+    }
+
+    function test_WinnersRemainLosersAndSkippersAreEliminated() external {
+        _startGame(7);
+        _bet(alice, HiLoGame.Side.Hi, 1 ether);
+        _bet(bob, HiLoGame.Side.Lo, 1 ether);
+        _requestAndFulfillRoll(13);
+
+        (uint256 totalPlayers, uint256 activePlayers) = game.getPlayerCount(1);
+        assertEq(totalPlayers, 3);
+        assertEq(activePlayers, 1);
+        assertTrue(game.isPlayerActive(1, alice));
+        assertFalse(game.isPlayerActive(1, bob));
+        assertFalse(game.isPlayerActive(1, carol));
+        HiLoGame.PlayerView[] memory players = game.getPlayerPage(1, 0, 3);
+        assertTrue(players[0].active);
+        assertFalse(players[1].active);
+        assertFalse(players[2].active);
+
+        game.openNextRound();
+        _bet(alice, HiLoGame.Side.Lo, 1 ether);
+        vm.prank(bob);
+        vm.expectRevert(HiLoGame.HiLoGame__PlayerEliminated.selector);
+        game.placeBet{value: 1 ether}(HiLoGame.Side.Hi);
+        vm.prank(carol);
+        vm.expectRevert(HiLoGame.HiLoGame__PlayerEliminated.selector);
+        game.placeBet{value: 1 ether}(HiLoGame.Side.Hi);
+    }
+
+    function test_RefundRoundKeepsAllPlayersActiveIncludingSkippers() external {
+        _startGame(7);
+        _bet(alice, HiLoGame.Side.Hi, 1 ether);
+        _requestAndFulfillRoll(0);
+
+        assertTrue(game.isPlayerActive(1, alice));
+        assertTrue(game.isPlayerActive(1, bob));
+        assertTrue(game.isPlayerActive(1, carol));
+        (, uint256 activePlayers) = game.getPlayerCount(1);
+        assertEq(activePlayers, 3);
+
+        game.openNextRound();
+        _bet(bob, HiLoGame.Side.Hi, 1 ether);
+    }
+
+    function test_EmptyDecisiveRoundEliminatesEveryoneAndCannotAdvance() external {
+        _startGame(7);
+        _requestAndFulfillRoll(13);
+
+        (, uint256 activePlayers) = game.getPlayerCount(1);
+        assertEq(activePlayers, 0);
+        vm.expectRevert(HiLoGame.HiLoGame__NoRemainingPlayers.selector);
+        game.openNextRound();
+        game.endGame();
+        assertEq(game.currentGameId(), 2);
     }
 
     function test_RevertWhen_CallbackCallerIsNotCoordinator() external {

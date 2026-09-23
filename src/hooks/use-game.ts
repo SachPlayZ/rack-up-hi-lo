@@ -41,7 +41,6 @@ export function useGameSnapshot() {
       { address: safeGameAddress, abi: hiLoGameAbi, functionName: "phase" },
       { address: safeGameAddress, abi: hiLoGameAbi, functionName: "currentBall" },
       { address: safeGameAddress, abi: hiLoGameAbi, functionName: "initialRandomnessRequestedAt" },
-      { address: safeGameAddress, abi: hiLoGameAbi, functionName: "getCurrentPlayers" },
       { address: safeGameAddress, abi: hiLoGameAbi, functionName: "owner" },
     ],
     query: { enabled, refetchInterval: 4_000 },
@@ -52,13 +51,30 @@ export function useGameSnapshot() {
   const phase = Number(gameReads.data?.[2]?.result ?? 0) as Phase;
   const currentBall = Number(gameReads.data?.[3]?.result ?? 0);
   const initialRandomnessRequestedAt = (gameReads.data?.[4]?.result as bigint | undefined) ?? 0n;
-  const players = (gameReads.data?.[5]?.result as PlayerView[] | undefined) ?? [];
-  const owner = gameReads.data?.[6]?.result as Address | undefined;
+  const owner = gameReads.data?.[5]?.result as Address | undefined;
+
+  const playerCountRead = useReadContract({
+    address: safeGameAddress,
+    abi: hiLoGameAbi,
+    functionName: "getPlayerCount",
+    args: [currentGameId],
+    query: { enabled, refetchInterval: 4_000 },
+  });
+  const [totalPlayerCount, activePlayerCount] =
+    (playerCountRead.data as readonly [bigint, bigint] | undefined) ?? [0n, 0n];
 
   const playerRead = useReadContract({
     address: safeGameAddress,
     abi: hiLoGameAbi,
     functionName: "getPlayer",
+    args: [currentGameId, account],
+    query: { enabled: enabled && isConnected, refetchInterval: 4_000 },
+  });
+
+  const playerActiveRead = useReadContract({
+    address: safeGameAddress,
+    abi: hiLoGameAbi,
+    functionName: "isPlayerActive",
     args: [currentGameId, account],
     query: { enabled: enabled && isConnected, refetchInterval: 4_000 },
   });
@@ -119,7 +135,9 @@ export function useGameSnapshot() {
   const refresh = useCallback(() => {
     void Promise.all([
       gameReads.refetch(),
+      playerCountRead.refetch(),
       playerRead.refetch(),
+      playerActiveRead.refetch(),
       roundRead.refetch(),
       betRead.refetch(),
       historyRead.refetch(),
@@ -128,7 +146,19 @@ export function useGameSnapshot() {
       walletBalance.refetch(),
       faucetBalance.refetch(),
     ]);
-  }, [betRead, claimableReads, faucetBalance, faucetReads, gameReads, historyRead, playerRead, roundRead, walletBalance]);
+  }, [
+    betRead,
+    claimableReads,
+    faucetBalance,
+    faucetReads,
+    gameReads,
+    historyRead,
+    playerActiveRead,
+    playerCountRead,
+    playerRead,
+    roundRead,
+    walletBalance,
+  ]);
 
   useWatchContractEvent({
     address: gameAddress,
@@ -151,10 +181,12 @@ export function useGameSnapshot() {
     currentRoundId,
     phase,
     currentBall,
+    totalPlayerCount,
+    activePlayerCount,
     initialRandomnessRequestedAt,
-    players,
     owner,
     player: playerRead.data as Player | undefined,
+    playerActive: playerActiveRead.data as boolean | undefined,
     round: roundRead.data as Round | undefined,
     bet: betRead.data as Bet | undefined,
     hasClaimedFaucet: Boolean(faucetReads.data?.[0]?.result),
@@ -164,7 +196,7 @@ export function useGameSnapshot() {
     claimableRounds,
     claimableTotal,
     isLoading: gameReads.isLoading,
-    error: gameReads.error ?? playerRead.error ?? roundRead.error,
+    error: gameReads.error ?? playerCountRead.error ?? playerRead.error ?? playerActiveRead.error ?? roundRead.error,
     refresh,
   };
 }
@@ -203,6 +235,52 @@ export function useGameActions(refresh: () => void) {
     [publicClient, refresh, writeContractAsync],
   );
 
+  const loadRemainingPlayers = useCallback(
+    async (gameId: bigint): Promise<PlayerView[]> => {
+      const client = publicClient;
+      const contractAddress = gameAddress;
+      if (!client || !contractAddress) throw new Error("Game contract is not configured.");
+
+      const [totalPlayers] = await client.readContract({
+        address: contractAddress,
+        abi: hiLoGameAbi,
+        functionName: "getPlayerCount",
+        args: [gameId],
+      });
+      const pageSize = 100n;
+      const pagesPerBatch = 4n;
+      const survivors: PlayerView[] = [];
+
+      for (let batchStart = 0n; batchStart < totalPlayers; batchStart += pageSize * pagesPerBatch) {
+        const offsets: bigint[] = [];
+        for (
+          let offset = batchStart;
+          offset < totalPlayers && offset < batchStart + pageSize * pagesPerBatch;
+          offset += pageSize
+        ) {
+          offsets.push(offset);
+        }
+
+        const pages = await Promise.all(
+          offsets.map((offset) =>
+            client.readContract({
+              address: contractAddress,
+              abi: hiLoGameAbi,
+              functionName: "getPlayerPage",
+              args: [gameId, offset, pageSize],
+            }),
+          ),
+        );
+        for (const page of pages) {
+          survivors.push(...(page as PlayerView[]).filter((player) => player.active));
+        }
+      }
+
+      return survivors;
+    },
+    [publicClient],
+  );
+
   return {
     isPending,
     joinLobby: (displayName: string) => send("joinLobby", [displayName]),
@@ -216,6 +294,7 @@ export function useGameActions(refresh: () => void) {
     openNextRound: () => send("openNextRound"),
     endGame: () => send("endGame"),
     claim: (roundIds: bigint[]) => send("claim", [roundIds]),
+    loadRemainingPlayers,
   };
 }
 

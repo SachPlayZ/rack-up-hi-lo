@@ -16,7 +16,7 @@ const hero: Record<Phase, { eyebrow: string; title: string; body: string }> = {
   [Phase.Lobby]: {
     eyebrow: "The table is open",
     title: "Pick a name. Take your shot.",
-    body: "Claim test ETH, join the rail, and wait for the room runner to break the first rack.",
+    body: "Claim test ETH, choose a name, and join the next live Hi-Lo game.",
   },
   [Phase.AwaitingInitialBall]: {
     eyebrow: "Game on",
@@ -24,9 +24,9 @@ const hero: Record<Phase, { eyebrow: string; title: string; body: string }> = {
     body: "Chainlink VRF is choosing the number that every call will chase.",
   },
   [Phase.Betting]: {
-    eyebrow: "Thirty seconds on the clock",
+    eyebrow: "One minute on the clock",
     title: "Higher or lower? Call it.",
-    body: "One wallet. One side. One wager. The winning pool splits the whole table.",
+    body: "Pick the right side to stay in. Winning wagers split the whole table.",
   },
   [Phase.AwaitingRoll]: {
     eyebrow: "No more bets",
@@ -36,7 +36,7 @@ const hero: Record<Phase, { eyebrow: string; title: string; body: string }> = {
   [Phase.Settled]: {
     eyebrow: "Round complete",
     title: "Read the table. Rack again.",
-    body: "Winners can claim now while the admin sets the pace for the next round.",
+    body: "Correct picks stay in the game. Claim your winnings whenever you like.",
   },
 };
 
@@ -84,7 +84,7 @@ export function GameRoom() {
       setFeedback({ tone: "error", message: "Use 3–16 letters, numbers, spaces, underscores, or hyphens." });
       return;
     }
-    void run("Adding your name to the rail…", () => actions.joinLobby(name));
+    void run("Joining the game…", () => actions.joinLobby(name));
   }
 
   function placeBet(side: Side) {
@@ -133,6 +133,16 @@ export function GameRoom() {
             <div className="pool-tile">
               <span>Lo pool</span>
               <strong>{formatEth(round?.loPool)} ETH</strong>
+            </div>
+          </div>
+          <div className="pool-grid player-count-grid" aria-label="Game participation">
+            <div className="pool-tile">
+              <span>Players joined</span>
+              <strong>{snapshot.totalPlayerCount.toLocaleString()}</strong>
+            </div>
+            <div className="pool-tile">
+              <span>Still in the game</span>
+              <strong>{snapshot.activePlayerCount.toLocaleString()}</strong>
             </div>
           </div>
         </section>
@@ -200,30 +210,16 @@ export function GameRoom() {
                   </form>
                 ) : null}
 
-                {snapshot.player?.joined ? <p className="success-copy">You are on the rail as {snapshot.player.displayName}.</p> : null}
-                {snapshot.phase !== Phase.Lobby && !snapshot.player?.joined ? <p className="hint">The roster is locked. Watch this game and join the next lobby.</p> : null}
+                {snapshot.player?.joined && snapshot.playerActive === false ? (
+                  <p className="hint">You were eliminated this round. You can still claim any earlier winnings.</p>
+                ) : snapshot.player?.joined ? (
+                  <p className="success-copy">You’re in as {snapshot.player.displayName}.</p>
+                ) : null}
+                {snapshot.phase !== Phase.Lobby && !snapshot.player?.joined ? <p className="hint">This game is underway. Join the next one when the current game ends.</p> : null}
               </div>
             )}
 
             {feedback.message ? <p className={feedback.tone === "error" ? "error-copy" : feedback.tone === "success" ? "success-copy" : "hint"}>{feedback.message}</p> : null}
-          </section>
-
-          <section className="panel">
-            <div className="panel__header">
-              <h2>Players on the rail</h2>
-              <span className="round-label">{snapshot.players.length}/100</span>
-            </div>
-            <div className="lobby-list">
-              {snapshot.players.length ? snapshot.players.map((player, index) => (
-                <div className="lobby-player" key={player.account}>
-                  <div className="player-ident">
-                    <span className="avatar">{player.displayName.slice(0, 1).toUpperCase()}</span>
-                    <div><strong>{player.displayName}</strong><small>{shortAddress(player.account)}</small></div>
-                  </div>
-                  <span className="round-label">#{index + 1}</span>
-                </div>
-              )) : <p className="empty-state">No names on the rail yet.</p>}
-            </div>
           </section>
 
           {snapshot.claimableTotal > 0n ? (
@@ -238,14 +234,15 @@ export function GameRoom() {
           <section className="panel">
             <div className="panel__header"><h2>House rules</h2></div>
             <ol className="step-list">
-              <li><span>1</span> One wager per wallet each round.</li>
-              <li><span>2</span> Higher or lower than the current ball wins.</li>
-              <li><span>3</span> Winning wallets split the complete pool.</li>
+              <li><span>1</span> Place one wager during the 60-second window.</li>
+              <li><span>2</span> A losing pick or skipped round eliminates you.</li>
+              <li><span>3</span> Refund rounds keep every active player in.</li>
+              <li><span>4</span> Winners stay in and split the complete pool.</li>
             </ol>
           </section>
         </div>
 
-        {snapshot.phase === Phase.Betting && snapshot.player?.joined ? (
+        {snapshot.phase === Phase.Betting && snapshot.player?.joined && snapshot.playerActive ? (
           <section className="bet-dock" aria-label="Place a wager">
             {bet && bet.amount > 0n ? (
               <p className="success-copy">Your {formatEth(bet.amount)} ETH wager is locked on {bet.side === Side.Hi ? "Hi" : "Lo"}.</p>

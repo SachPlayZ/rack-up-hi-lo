@@ -69,11 +69,11 @@
 
 #### Risks
 
-- Privy origin allowlist status is unconfirmed; live sign-in and gameplay smoke tests remain.
+- Production URL is now confirmed allowlisted in Privy; live sign-in and gameplay smoke tests remain.
 
 #### Follow-ups
 
-- Confirm the Privy origin allowlist and run the live player/faucet/game smoke tests.
+- Run the live player/faucet/game smoke tests.
 
 ## Base Sepolia deployment
 
@@ -82,12 +82,13 @@
 - [x] Record the admin address and check Base Sepolia balance and VRF subscription state.
 - [x] Confirm the `chainlink` keystore is the VRF subscription owner and can manage it.
 - [x] Fund the VRF subscription with test LINK.
-- [ ] Allowlist the production Privy origin.
+- [x] Allowlist the production Privy origin (confirmed by user).
 - [x] Deploy the game and faucet with the encrypted Foundry keystore; verify owner and VRF consumer.
 - [x] Configure Vercel contract/faucet settings and redeploy production.
 - [x] Fund the original faucet and relayer.
 - [x] Fresh-deploy game and faucet with `0xAc99290B7Cd053276839Fb4bfB33dA9cdABF727D` as owner.
 - [x] Point Vercel at the fresh contracts and redeploy production.
+- [x] Fund the fresh faucet and confirm relayer funding.
 - [ ] Retire old contracts: transfer ownership, move the old faucet reserve, and remove the old VRF consumer.
 - [ ] Run a live lobby/faucet smoke test.
 
@@ -98,8 +99,9 @@
 - [x] Verify Vercel production environment and deployment readiness.
 - [x] Verify the live faucet challenge endpoint returns HTTP 200 and the sign-in control initializes.
 - [x] Verify fresh game/faucet owners, relayer, VRF consumer, and production configuration.
+- [x] Verify fresh faucet balance, production site, and faucet challenge endpoint; user confirmed Privy allowlist.
 - [ ] Verify old ownership/funds/VRF consumer are retired without moving the `0xe34...` EOA balance.
-- [ ] Run a live lobby/faucet smoke test after funding and Privy origin setup.
+- [ ] Run a live lobby/faucet smoke test.
 
 ### Review
 
@@ -118,18 +120,96 @@
 - VRF subscription holds 20 LINK; its owner is `0xAc99290B7Cd053276839Fb4bfB33dA9cdABF727D`.
 - The old contract pair still has the original admin as owner; the old faucet holds 0.5 ETH.
 - Fresh game and faucet ownership is `0xAc99290B7Cd053276839Fb4bfB33dA9cdABF727D`; the subscription contains both old and new game consumers.
-- New faucet points to the existing relayer but is not funded yet; the original faucet holds 0.5 ETH and relayer holds 0.2 ETH.
-- Production site and faucet challenge endpoint return HTTP 200.
+- New faucet points to the existing relayer; fresh faucet holds 0.7 ETH (700 starter claims at 0.001 ETH each), relayer holds 0.2 ETH.
+- Production URL is allowlisted in Privy (user-confirmed); production site and faucet challenge endpoint return HTTP 200.
 - Production Vercel deployment is `READY`; the production URL returns HTTP 200.
 - Faucet holds 0.5 ETH, relayer holds 0.2 ETH, VRF subscription holds 20 LINK, and the live faucet challenge endpoint returns HTTP 200.
 
 #### Risks
 
-- Privy login needs the production origin allowlisted if that has not already been done.
 - A real sign-in, faucet claim, and complete two-player game smoke test still need to be performed.
 - Fresh faucet deployment resets its permanent one-claim registry; previously claimed wallets can claim once again.
 - Old contract cleanup requires local signatures from the current owner and subscription owner; keep keystore passwords local.
 
 #### Follow-ups
 
-- Retire the old contracts, move the 0.5 ETH reserve into the new faucet, then perform real player sign-in/faucet and game smoke tests.
+- Retire the old contracts and move their 0.5 ETH reserve as previously agreed; this does not block testing the fresh deployment.
+- Perform real player sign-in/faucet and two-player game smoke tests.
+
+## Live elimination and roster changes
+
+### Plan
+
+- [x] Replace the 100-player cap with scalable counts and paginated roster reads.
+- [x] Keep correct bettors in the game; eliminate wrong bettors and skippers on decisive rounds; preserve everyone through refund rounds.
+- [x] Increase betting windows from 30 to 60 seconds.
+- [x] Replace player/admin live rosters with joined/active counts; show remaining display names after admin ends a game.
+- [x] Update contract/frontend tests and game documentation.
+
+### Verification
+
+- [x] Run Foundry unit, fuzz, invariant, build-size, and lint checks.
+- [x] Run frontend lint, typecheck, tests, and production build.
+- [x] Inspect responsive player/admin screens and final diff.
+
+### Review
+
+#### Changed
+
+- Removed the fixed 100-player cap; added joined/active counts and 100-entry paginated roster views.
+- Added winner-stays elimination on decisive rounds; losing bets and skippers are out, refunds preserve players, and prior claims remain independent.
+- Set betting duration to 60 seconds.
+- Removed player rail and live admin roster; added counts and an end-game survivor-name list.
+
+#### Verified
+
+- 48 Foundry tests, including 105 additional lobby joins, pagination, elimination, refunds, empty-round handling, and active-count invariant.
+- Foundry format/build-size/high-severity lint; frontend lint, typecheck, 15 unit tests, production build, and 4 mobile/desktop Playwright checks pass.
+- Screenshot-checked mobile player counts and desktop admin gate; no horizontal overflow. Final diff passes `git diff --check`.
+
+#### Risks
+
+- `HiLoGame` is non-upgradeable; the new rules require a new deployment before production uses them.
+- The old game remains deployed and registered as a VRF consumer; production will use the new game after rollout.
+- There is no fixed lobby cap; roster reads are paginated in batches of 100 to avoid unbounded RPC calls.
+
+#### Follow-ups
+
+- Retire the old game and run a live mobile/two-player/VRF smoke game.
+- Run a live mobile/two-player/VRF smoke game after deployment.
+
+#### Unresolved questions
+
+- None. User confirmed skipped decisive rounds should eliminate players.
+
+## Publish live elimination game
+
+### Plan
+
+- [x] Add a game-only Base Sepolia deployment script; keep the funded faucet unchanged.
+- [x] Deploy with the encrypted `chainlink` keystore and register the new game with the funded VRF subscription.
+- [x] Verify owner, VRF consumer, subscription funding, and deployed bytecode.
+- [x] Update only the production game address.
+- [ ] Publish the code to GitHub and deploy on Vercel CLI.
+- [ ] Verify production serves the new app and still uses the funded faucet.
+
+### Verification
+
+- [x] Run Foundry format/test checks after adding the deploy script.
+- [x] Verify onchain contract state and production game address; confirm funded faucet remains intact.
+- [ ] Inspect final Git diff and publish status.
+
+### Review
+
+#### Changed
+
+#### Verified
+
+#### Risks
+
+- The old game remains deployed and registered as a VRF consumer; this deployment does not retire or alter it.
+- A full live two-player oracle round still requires player wallets and separate gameplay transactions.
+
+#### Follow-ups
+
+- Retire the old contracts and run a live two-player smoke game.

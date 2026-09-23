@@ -37,6 +37,11 @@ contract HiLoGameInvariantTest is StdInvariant, Test {
         }
     }
 
+    function invariant_ActivePlayersNeverExceedJoinedPlayers() external view {
+        (uint256 totalPlayers, uint256 activePlayers) = game.getPlayerCount(game.currentGameId());
+        assertLe(activePlayers, totalPlayers);
+    }
+
     function invariant_RoundAccountingNeverExceedsOriginalPool() external view {
         uint256 maxRound = handler.maxRoundSeen();
         for (uint256 roundId = 1; roundId <= maxRound; ++roundId) {
