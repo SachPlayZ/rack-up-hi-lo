@@ -69,8 +69,51 @@
 
 #### Risks
 
-- Privy app ID, game/faucet contract addresses, and faucet relay secrets are not configured in Vercel, so login and onchain gameplay need production environment setup before use.
+- Privy login still needs the production origin allowlisted; live game/faucet smoke testing awaits testnet funding.
 
 #### Follow-ups
 
-- Configure the production Privy and Base Sepolia contract/faucet variables in Vercel, then redeploy and run the live smoke game.
+- Finish the Privy origin allowlist, fund the testnet services, then smoke-test the live game.
+
+## Base Sepolia deployment
+
+### Plan
+
+- [x] Record the admin address and check Base Sepolia balance and VRF subscription state.
+- [x] Confirm the `chainlink` keystore is the VRF subscription owner and can manage it.
+- [ ] Fund the VRF subscription with test LINK and allowlist the production Privy origin.
+- [x] Deploy the game and faucet with the encrypted Foundry keystore; verify owner and VRF consumer.
+- [x] Configure Vercel contract/faucet settings and redeploy production.
+- [ ] Fund the faucet/relayer and run a live lobby/faucet smoke test.
+
+### Verification
+
+- [x] Confirm Base Sepolia chain ID, admin wallet balance, and VRF subscription owner/funding.
+- [x] Verify deployed contract addresses, ownership, and VRF consumer registration.
+- [x] Verify Vercel production environment and deployment readiness.
+- [ ] Run a live lobby/faucet smoke test after funding and Privy origin setup.
+
+### Review
+
+#### Changed
+
+- Set the production Privy App ID and production app URL in Vercel; redeployed successfully.
+- Deployed `HiLoGame` at `0x2555423E6c7098C8B59baa6E797B2Be23732638B` and faucet at `0x01357B8242afb2209c0B4Fd8Da6671e4a69D21Ec`.
+- Stored a dedicated faucet relayer private key and random auth secret as Vercel production secrets; relayer address is `0x0C33957841579B28E6C32Ca452a8EE2322E69f23`.
+- Added contract/RPC configuration to Vercel and redeployed production.
+
+#### Verified
+
+- Admin wallet has 20 Base Sepolia ETH.
+- VRF subscription exists, but currently has zero LINK and zero native balance; its owner is `0xAc99290B7Cd053276839Fb4bfB33dA9cdABF727D`, distinct from the requested admin address.
+- Both deployed contracts report the requested admin as owner, and the subscription lists the game as consumer.
+- Production Vercel deployment is `READY`; the production URL returns HTTP 200.
+
+#### Risks
+
+- VRF draws cannot succeed until the subscription is funded with Base Sepolia LINK. The faucet and relayer currently have zero ETH.
+- Privy login needs the production origin allowlisted if that has not already been done.
+
+#### Follow-ups
+
+- Fund the subscription, faucet, and relayer; confirm the Privy origin is allowlisted at `https://rack-up-hi-lo.vercel.app`; then smoke-test the app.
