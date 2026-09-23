@@ -169,8 +169,8 @@
 
 #### Risks
 
-- `HiLoGame` is non-upgradeable; the new rules require a new deployment before production uses them.
-- The old game remains deployed and registered as a VRF consumer; production will use the new game after rollout.
+- `HiLoGame` is non-upgradeable; the updated rules are live at the new production contract address.
+- The older games remain deployed and registered as VRF consumers.
 - There is no fixed lobby cap; roster reads are paginated in batches of 100 to avoid unbounded RPC calls.
 
 #### Follow-ups
@@ -190,20 +190,29 @@
 - [x] Deploy with the encrypted `chainlink` keystore and register the new game with the funded VRF subscription.
 - [x] Verify owner, VRF consumer, subscription funding, and deployed bytecode.
 - [x] Update only the production game address.
-- [ ] Publish the code to GitHub and deploy on Vercel CLI.
-- [ ] Verify production serves the new app and still uses the funded faucet.
+- [x] Publish the code to GitHub and deploy on Vercel CLI.
+- [x] Verify production serves the new app and still uses the funded faucet.
 
 ### Verification
 
 - [x] Run Foundry format/test checks after adding the deploy script.
 - [x] Verify onchain contract state and production game address; confirm funded faucet remains intact.
-- [ ] Inspect final Git diff and publish status.
+- [x] Inspect final Git diff and publish status.
 
 ### Review
 
 #### Changed
 
+- Added a game-only deployment script and deployed `HiLoGame` at `0x93bE1040670dAe5Fc89323fA611ee3CFC16aA169`; existing faucet was preserved.
+- Updated Vercel production game address, pushed commit `313e38a`, and deployed with Vercel CLI (`dpl_CfBiXMvQmW6SFULcTdQM3Nygz7JP`).
+
 #### Verified
+
+- 48 Foundry tests and format/build checks pass; frontend lint, typecheck, 15 tests, and production build pass.
+- New game owner is `0xAc99290B7Cd053276839Fb4bfB33dA9cdABF727D`; it is registered on Base Sepolia chain `84532` with the funded subscription (about 20 LINK). Runtime bytecode is present.
+- Subscription consumer list includes the new game; existing faucet remains `0xC217F6b9bF6d249B328D7c3F8794582457658c5c` with `0.698 ETH` at verification.
+- Production Vercel config matches the new game and existing faucet; homepage and faucet challenge return HTTP 200; deployed app bundle contains the new game address.
+- GitHub `main` contains commit `313e38a`; Vercel deployment is `READY` and aliased to `https://rack-up-hi-lo.vercel.app`.
 
 #### Risks
 
