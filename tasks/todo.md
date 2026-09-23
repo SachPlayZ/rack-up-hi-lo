@@ -85,8 +85,10 @@
 - [ ] Allowlist the production Privy origin.
 - [x] Deploy the game and faucet with the encrypted Foundry keystore; verify owner and VRF consumer.
 - [x] Configure Vercel contract/faucet settings and redeploy production.
-- [x] Fund the faucet and relayer.
-- [ ] Transfer `HiLoGame` ownership to the requested room runner and verify the two-step acceptance.
+- [x] Fund the original faucet and relayer.
+- [x] Fresh-deploy game and faucet with `0xAc99290B7Cd053276839Fb4bfB33dA9cdABF727D` as owner.
+- [x] Point Vercel at the fresh contracts and redeploy production.
+- [ ] Retire old contracts: transfer ownership, move the old faucet reserve, and remove the old VRF consumer.
 - [ ] Run a live lobby/faucet smoke test.
 
 ### Verification
@@ -95,7 +97,8 @@
 - [x] Verify deployed contract addresses, ownership, and VRF consumer registration.
 - [x] Verify Vercel production environment and deployment readiness.
 - [x] Verify the live faucet challenge endpoint returns HTTP 200 and the sign-in control initializes.
-- [ ] Verify the requested runner is the `HiLoGame` owner and can authenticate through Privy.
+- [x] Verify fresh game/faucet owners, relayer, VRF consumer, and production configuration.
+- [ ] Verify old ownership/funds/VRF consumer are retired without moving the `0xe34...` EOA balance.
 - [ ] Run a live lobby/faucet smoke test after funding and Privy origin setup.
 
 ### Review
@@ -106,12 +109,17 @@
 - Deployed `HiLoGame` at `0x2555423E6c7098C8B59baa6E797B2Be23732638B` and faucet at `0x01357B8242afb2209c0B4Fd8Da6671e4a69D21Ec`.
 - Stored a dedicated faucet relayer private key and random auth secret as Vercel production secrets; relayer address is `0x0C33957841579B28E6C32Ca452a8EE2322E69f23`.
 - Added contract/RPC configuration to Vercel and redeployed production.
+- Fresh-deployed `HiLoGame` at `0x3cd22D98571884dC9d0692e520B5A7Aa4d95B22A` and faucet at `0xC217F6b9bF6d249B328D7c3F8794582457658c5c`, both owned by `0xAc99290B7Cd053276839Fb4bfB33dA9cdABF727D`.
+- Updated Vercel to the fresh contract addresses and redeployed production.
 
 #### Verified
 
 - Admin wallet has 20 Base Sepolia ETH.
 - VRF subscription holds 20 LINK; its owner is `0xAc99290B7Cd053276839Fb4bfB33dA9cdABF727D`.
-- Both deployed contracts currently report the original admin as owner, and the subscription lists the game as consumer.
+- The old contract pair still has the original admin as owner; the old faucet holds 0.5 ETH.
+- Fresh game and faucet ownership is `0xAc99290B7Cd053276839Fb4bfB33dA9cdABF727D`; the subscription contains both old and new game consumers.
+- New faucet points to the existing relayer but is not funded yet; the original faucet holds 0.5 ETH and relayer holds 0.2 ETH.
+- Production site and faucet challenge endpoint return HTTP 200.
 - Production Vercel deployment is `READY`; the production URL returns HTTP 200.
 - Faucet holds 0.5 ETH, relayer holds 0.2 ETH, VRF subscription holds 20 LINK, and the live faucet challenge endpoint returns HTTP 200.
 
@@ -119,9 +127,9 @@
 
 - Privy login needs the production origin allowlisted if that has not already been done.
 - A real sign-in, faucet claim, and complete two-player game smoke test still need to be performed.
-- Runner transfer requires the current owner's transaction and the new runner's `acceptOwnership()` transaction; keep both keystore passwords local.
+- Fresh faucet deployment resets its permanent one-claim registry; previously claimed wallets can claim once again.
+- Old contract cleanup requires local signatures from the current owner and subscription owner; keep keystore passwords local.
 
 #### Follow-ups
 
-- Confirm the Privy origin is allowlisted at `https://rack-up-hi-lo.vercel.app`; then perform real player sign-in/faucet and game smoke tests.
-- Transfer game ownership to `0xAc99290B7Cd053276839Fb4bfB33dA9cdABF727D`; keep faucet ownership unchanged unless separately requested.
+- Retire the old contracts, move the 0.5 ETH reserve into the new faucet, then perform real player sign-in/faucet and game smoke tests.
