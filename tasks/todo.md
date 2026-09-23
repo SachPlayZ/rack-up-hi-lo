@@ -69,11 +69,11 @@
 
 #### Risks
 
-- Privy login still needs the production origin allowlisted; live game/faucet smoke testing awaits testnet funding.
+- Privy origin allowlist status is unconfirmed; live sign-in and gameplay smoke tests remain.
 
 #### Follow-ups
 
-- Finish the Privy origin allowlist, fund the testnet services, then smoke-test the live game.
+- Confirm the Privy origin allowlist and run the live player/faucet/game smoke tests.
 
 ## Base Sepolia deployment
 
@@ -81,16 +81,19 @@
 
 - [x] Record the admin address and check Base Sepolia balance and VRF subscription state.
 - [x] Confirm the `chainlink` keystore is the VRF subscription owner and can manage it.
-- [ ] Fund the VRF subscription with test LINK and allowlist the production Privy origin.
+- [x] Fund the VRF subscription with test LINK.
+- [ ] Allowlist the production Privy origin.
 - [x] Deploy the game and faucet with the encrypted Foundry keystore; verify owner and VRF consumer.
 - [x] Configure Vercel contract/faucet settings and redeploy production.
-- [ ] Fund the faucet/relayer and run a live lobby/faucet smoke test.
+- [x] Fund the faucet and relayer.
+- [ ] Run a live lobby/faucet smoke test.
 
 ### Verification
 
 - [x] Confirm Base Sepolia chain ID, admin wallet balance, and VRF subscription owner/funding.
 - [x] Verify deployed contract addresses, ownership, and VRF consumer registration.
 - [x] Verify Vercel production environment and deployment readiness.
+- [x] Verify the live faucet challenge endpoint returns HTTP 200 and the sign-in control initializes.
 - [ ] Run a live lobby/faucet smoke test after funding and Privy origin setup.
 
 ### Review
@@ -108,12 +111,13 @@
 - VRF subscription exists, but currently has zero LINK and zero native balance; its owner is `0xAc99290B7Cd053276839Fb4bfB33dA9cdABF727D`, distinct from the requested admin address.
 - Both deployed contracts report the requested admin as owner, and the subscription lists the game as consumer.
 - Production Vercel deployment is `READY`; the production URL returns HTTP 200.
+- Faucet holds 0.5 ETH, relayer holds 0.2 ETH, VRF subscription holds 20 LINK, and the live faucet challenge endpoint returns HTTP 200.
 
 #### Risks
 
-- VRF draws cannot succeed until the subscription is funded with Base Sepolia LINK. The faucet and relayer currently have zero ETH.
 - Privy login needs the production origin allowlisted if that has not already been done.
+- A real sign-in, faucet claim, and complete two-player game smoke test still need to be performed.
 
 #### Follow-ups
 
-- Fund the subscription, faucet, and relayer; confirm the Privy origin is allowlisted at `https://rack-up-hi-lo.vercel.app`; then smoke-test the app.
+- Confirm the Privy origin is allowlisted at `https://rack-up-hi-lo.vercel.app`; then perform real player sign-in/faucet and game smoke tests.
