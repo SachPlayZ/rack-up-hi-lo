@@ -86,6 +86,7 @@
 - [x] Deploy the game and faucet with the encrypted Foundry keystore; verify owner and VRF consumer.
 - [x] Configure Vercel contract/faucet settings and redeploy production.
 - [x] Fund the faucet and relayer.
+- [ ] Transfer `HiLoGame` ownership to the requested room runner and verify the two-step acceptance.
 - [ ] Run a live lobby/faucet smoke test.
 
 ### Verification
@@ -94,6 +95,7 @@
 - [x] Verify deployed contract addresses, ownership, and VRF consumer registration.
 - [x] Verify Vercel production environment and deployment readiness.
 - [x] Verify the live faucet challenge endpoint returns HTTP 200 and the sign-in control initializes.
+- [ ] Verify the requested runner is the `HiLoGame` owner and can authenticate through Privy.
 - [ ] Run a live lobby/faucet smoke test after funding and Privy origin setup.
 
 ### Review
@@ -108,8 +110,8 @@
 #### Verified
 
 - Admin wallet has 20 Base Sepolia ETH.
-- VRF subscription exists, but currently has zero LINK and zero native balance; its owner is `0xAc99290B7Cd053276839Fb4bfB33dA9cdABF727D`, distinct from the requested admin address.
-- Both deployed contracts report the requested admin as owner, and the subscription lists the game as consumer.
+- VRF subscription holds 20 LINK; its owner is `0xAc99290B7Cd053276839Fb4bfB33dA9cdABF727D`.
+- Both deployed contracts currently report the original admin as owner, and the subscription lists the game as consumer.
 - Production Vercel deployment is `READY`; the production URL returns HTTP 200.
 - Faucet holds 0.5 ETH, relayer holds 0.2 ETH, VRF subscription holds 20 LINK, and the live faucet challenge endpoint returns HTTP 200.
 
@@ -117,7 +119,9 @@
 
 - Privy login needs the production origin allowlisted if that has not already been done.
 - A real sign-in, faucet claim, and complete two-player game smoke test still need to be performed.
+- Runner transfer requires the current owner's transaction and the new runner's `acceptOwnership()` transaction; keep both keystore passwords local.
 
 #### Follow-ups
 
 - Confirm the Privy origin is allowlisted at `https://rack-up-hi-lo.vercel.app`; then perform real player sign-in/faucet and game smoke tests.
+- Transfer game ownership to `0xAc99290B7Cd053276839Fb4bfB33dA9cdABF727D`; keep faucet ownership unchanged unless separately requested.
